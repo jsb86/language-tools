@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poem Scramble Game</title>
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="script.js"></script>
+</head>
+<body>
+    <div class="game-container">
+        <div class="navigation">
+            <button id="prev-section" class="nav-button">&#8592; Previous</button>
+            <button id="next-section" class="nav-button">Next &#8594;</button>
+        </div>
+
+        <div id="image-container">
+            <img id="section-image" src="images/section1.jpg" alt="Section Image">
+        </div>
+
+        <div id="poem-section" class="poem-section">
+            <div id="placeholders" class="placeholders">
+                <!-- Placeholders for sentence parts -->
+            </div>
+            <div id="scrambled-lines" class="scrambled-lines">
+                <!-- Poem lines for this section will be dynamically generated -->
+            </div>
+        </div>
+    </div>
+</body>
+</html>
