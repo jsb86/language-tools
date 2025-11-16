@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Memorizer: Text Training App</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 sm:p-8">
+    <div id="app" class="max-w-4xl mx-auto bg-white p-6 sm:p-10 rounded-xl shadow-2xl">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-extrabold text-indigo-700">The Memorizer Agent</h1>
+            <p class="text-gray-500 mt-2">Train your memory for poetry, plays, and songs using active recall.</p>
+        </header>
+
+        <!-- Main Input and Control Area -->
+        <div id="control-panel" class="mb-8 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+            <div id="input-view">
+                <label for="text-input" class="block text-sm font-medium text-gray-700 mb-2">Paste Your Text Here (Poem, Script, or Song):</label>
+                <textarea id="text-input" rows="8" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" placeholder="Paste your text here, line by line."></textarea>
+                
+                <div class="mt-4 flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                    <div class="w-full sm:w-1/2">
+                        <label for="mask-percentage" class="block text-sm font-medium text-gray-700">Masking Percentage: <span id="mask-value" class="font-bold text-indigo-600">50%</span></label>
+                        <input type="range" id="mask-percentage" min="10" max="90" value="50" step="5" class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <button onclick="startMemorization()" class="w-full sm:w-1/2 px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl shadow-lg hover:bg-indigo-700 transition duration-150 transform hover:scale-[1.02] active:scale-100">
+                        Start Training
+                    </button>
+                </div>
+            </div>
+
+            <div id="training-controls" class="hidden flex justify-between items-center">
+                <button onclick="stopTraining()" class="px-4 py-2 bg-red-500 text-white font-semibold rounded-xl shadow hover:bg-red-600 transition duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+                    End Session
+                </button>
+                <button onclick="regenerateMask()" class="px-4 py-2 bg-green-500 text-white font-semibold rounded-xl shadow hover:bg-green-600 transition duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2H4zM9 10a1 1 0 011-1h1a1 1 0 110 2h-1a1 1 0 01-1-1z" /></svg>
+                    New Mask
+                </button>
+            </div>
+        </div>
+        
+        <!-- Memorization Area -->
+        <div id="memorization-area" class="text-lg leading-relaxed space-y-4">
+            <p id="prompt-message" class="text-center text-gray-500 italic">Enter text above to begin your memory training.</p>
+        </div>
+
+        <!-- Optional: Placeholder for future AI/Gemini features -->
+        <div class="mt-12 pt-6 border-t border-gray-200">
+            <h3 class="text-xl font-bold text-gray-700 mb-4">✨ Next Step: Integrate AI Trainer (Gemini API)</h3>
+            <p class="text-gray-600">This section would use the Gemini API to analyze the text, provide contextual hints, or generate more sophisticated tests (e.g., fill-in-the-blanks based on grammar/meaning, not just randomness). We can add this feature in a future iteration!</p>
+        </div>
+
+    </div>
+
+    <!-- Firebase/Utility Script -->
+    <script type="module">
+        // Global variables for Firebase access
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Initialize Firebase variables
+        let app, db, auth, userId = null;
+        
+        // --- Firebase Initialization (Required for persistence) ---
+        if (firebaseConfig) {
+            setLogLevel('Debug');
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            // 1. Set Auth Persistence
+            setPersistence(auth, browserLocalPersistence)
+                .then(() => {
+                    // 2. Sign In
+                    if (initialAuthToken) {
+                        return signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        return signInAnonymously(auth);
+                    }
+                })
+                .catch((error) => {
+                    console.error("Firebase Auth Error:", error);
+                });
+
+            // 3. Auth State Listener to get userId
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    console.log("Firebase initialized. User ID:", userId);
+                    // We can now safely run Firestore logic (e.g., loading saved texts)
+                } else {
+                    console.log("User signed out or anonymous.");
+                }
+            });
+        }
+        
+        // --- Core Application Logic ---
+        
+        const textInput = document.getElementById('text-input');
+        const maskPercentageInput = document.getElementById('mask-percentage');
+        const maskValueSpan = document.getElementById('mask-value');
+        const memorizationArea = document.getElementById('memorization-area');
+        const inputView = document.getElementById('input-view');
+        const trainingControls = document.getElementById('training-controls');
+        const promptMessage = document.getElementById('prompt-message');
+
+        // Update the displayed mask percentage value
+        maskPercentageInput.addEventListener('input', () => {
+            maskValueSpan.textContent = `${maskPercentageInput.value}%`;
+        });
+
+        // Global variable to hold the original text
+        let originalText = '';
+        let currentMaskedText = '';
+        
+        window.startMemorization = function() {
+            const text = textInput.value.trim();
+            if (!text) {
+                promptMessage.textContent = 'Please paste some text into the box to start training.';
+                return;
+            }
+
+            originalText = text;
+            
+            // Toggle view to hide input and show controls
+            inputView.classList.add('hidden');
+            trainingControls.classList.remove('hidden');
+            
+            // Set the prompt message
+            promptMessage.classList.add('hidden');
+            
+            regenerateMask();
+        };
+
+        window.stopTraining = function() {
+            originalText = '';
+            currentMaskedText = '';
+            
+            // Toggle view to show input and hide controls
+            inputView.classList.remove('hidden');
+            trainingControls.classList.add('hidden');
+            
+            // Clear the memorization area and show prompt
+            memorizationArea.innerHTML = '';
+            promptMessage.classList.remove('hidden');
+            promptMessage.textContent = 'Training session ended. Enter new text to begin.';
+        };
+
+        window.regenerateMask = function() {
+            const percentage = parseInt(maskPercentageInput.value) / 100;
+            const lines = originalText.split('\n').filter(line => line.trim() !== '');
+
+            const maskedLines = lines.map(line => {
+                // Handle character roles or song titles (e.g., JOE: or [Verse 1])
+                const parts = line.split(':');
+                let prefix = '';
+                let content = line;
+
+                if (parts.length > 1 && parts[0].length < 15) { // Simple heuristic for speaker/section prefix
+                    prefix = `<span class="font-bold text-indigo-500">${parts[0].trim()}:</span> `;
+                    content = parts.slice(1).join(':').trim();
+                }
+
+                // Split content into words, keeping punctuation attached for a cleaner look
+                const words = content.match(/\S+/g) || []; 
+                
+                const maskedWords = words.map(word => {
+                    // Decide whether to mask the word
+                    const shouldMask = Math.random() < percentage;
+                    
+                    if (shouldMask) {
+                        // Replace the word with a blank, retaining its length for visual cues
+                        const maskLength = word.length > 3 ? word.length : 3; 
+                        const blank = `<span class="mask-word cursor-pointer text-transparent border-b-2 border-indigo-300 hover:border-indigo-600 transition duration-75" data-word="${word}">
+                            ${'&nbsp;'.repeat(maskLength)}
+                        </span>`;
+                        return blank;
+                    } else {
+                        return `<span class="unmasked-word">${word}</span>`;
+                    }
+                });
+
+                return `<div class="line mb-2">${prefix}${maskedWords.join(' ')}</div>`;
+            });
+            
+            currentMaskedText = maskedLines.join('');
+            memorizationArea.innerHTML = currentMaskedText;
+            
+            addMaskListeners();
+        };
+
+        function addMaskListeners() {
+            // Add click listeners to reveal hidden words
+            document.querySelectorAll('.mask-word').forEach(span => {
+                span.addEventListener('click', (event) => {
+                    const word = event.target.dataset.word;
+                    event.target.textContent = word; // Reveal the word
+                    event.target.classList.remove('mask-word', 'text-transparent', 'border-indigo-300', 'hover:border-indigo-600', 'cursor-pointer');
+                    event.target.classList.add('text-gray-800', 'font-medium', 'border-transparent');
+                });
+            });
+        }
+
+        // Initialize the slider value on load
+        maskValueSpan.textContent = `${maskPercentageInput.value}%`;
+    </script>
+</body>
+</html>
