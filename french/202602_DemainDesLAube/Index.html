@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Poésie : Victor Hugo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&family=Inter:wght@400;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .kids-font {
+            font-family: 'Comic Neue', cursive;
+        }
+
+        .card {
+            background: white;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Styles pour les menus déroulants (Mode Sélection) */
+        .line-select {
+            appearance: none;
+            background-color: #f1f5f9;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.75rem;
+            padding: 0.5rem 1rem;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 1.1rem;
+        }
+
+        .line-select.correct {
+            background-color: #dcfce7;
+            border-color: #22c55e;
+            color: #166534;
+        }
+
+        .line-select.wrong {
+            background-color: #fee2e2;
+            border-color: #ef4444;
+            color: #991b1b;
+        }
+
+        /* Styles pour le Mode Fantôme */
+        .ghost-line {
+            transition: all 0.3s;
+            padding: 6px 12px;
+            border-radius: 12px;
+            margin-bottom: 4px;
+        }
+
+        .ghost-line.active {
+            background-color: #fef9c3;
+            border-left: 5px solid #facc15;
+        }
+
+        .word-ghost {
+            display: inline-block;
+            cursor: pointer;
+            padding: 0 2px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .word-ghost:hover {
+            background-color: #fef3c7;
+        }
+
+        .word-ghost .full-word {
+            display: none;
+        }
+
+        .word-ghost.revealed .full-word {
+            display: inline;
+        }
+
+        .word-ghost.revealed .hint-word {
+            display: none;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-indigo-600 kids-font mb-2">🎓 Master Poésie CM1</h1>
+            <p class="text-gray-600">Apprends "Demain dès l'aube" à ton rythme.</p>
+        </header>
+
+        <!-- Menu de navigation -->
+        <div class="flex flex-wrap gap-3 justify-center mb-8">
+            <button onclick="changeMode('reading')" id="btn-reading" class="px-6 py-2 rounded-full font-bold border-2 border-indigo-400 bg-indigo-500 text-white shadow-md">👀 Lecture</button>
+            <button onclick="changeMode('selection')" id="btn-selection" class="px-6 py-2 rounded-full font-bold border-2 border-emerald-400 text-emerald-600 bg-white hover:bg-emerald-50">🧩 Sélection</button>
+            <button onclick="changeMode('ghost')" id="btn-ghost" class="px-6 py-2 rounded-full font-bold border-2 border-amber-400 text-amber-600 bg-white hover:bg-amber-50">👻 Fantôme</button>
+        </div>
+
+        <div class="card p-6 md:p-10 min-h-[500px] flex flex-col">
+            <div id="game-content" class="kids-font text-xl leading-relaxed text-gray-800 flex-grow">
+                <!-- Le contenu sera généré par le script -->
+            </div>
+
+            <!-- Contrôles du Mode Fantôme -->
+            <div id="ghost-controls" class="hidden mt-6 pt-6 border-t border-gray-100">
+                <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
+                    <button onclick="revealNextGhostLine()" class="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg flex items-center gap-2 transition-transform active:scale-95">
+                        💡 Montrer le vers suivant
+                    </button>
+                    <button onclick="resetGhost()" class="text-gray-400 hover:text-gray-600 font-bold text-sm">
+                        Réinitialiser l'aide
+                    </button>
+                </div>
+                <p class="text-center text-xs text-gray-400 mt-4">Astuce : Clique sur un mot caché pour le découvrir !</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const allLines = [
+            "Demain, dès l'aube, à l'heure où blanchit la campagne,",
+            "Je partirai. Vois-tu, je sais que tu m'attends.",
+            "J'irai par la forêt, j'irai par la montagne.",
+            "Je ne puis demeurer loin de toi plus longtemps.",
+            "Je marcherai les yeux fixés sur mes pensées,",
+            "Sans rien voir au dehors, sans entendre aucun bruit,",
+            "Seul, inconnu, le dos courbé, les mains croisées,",
+            "Triste, et le jour pour moi sera comme la nuit.",
+            "Je ne regarderai ni l'or du soir qui tombe,",
+            "Ni les voiles au loin descendant vers Harfleur,",
+            "Et quand j'arriverai, je mettrai sur ta tombe",
+            "Un bouquet de houx vert et de bruyère en fleur."
+        ];
+
+        let currentMode = 'reading';
+        let ghostIndex = -1;
+
+        function changeMode(mode) {
+            currentMode = mode;
+            ghostIndex = -1;
+            
+            // Mise à jour visuelle des boutons
+            document.querySelectorAll('button[id^="btn-"]').forEach(btn => {
+                const type = btn.id.split('-')[1];
+                const colors = {reading:'indigo', selection:'emerald', ghost:'amber'};
+                const c = colors[type];
+                btn.className = "px-6 py-2 rounded-full font-bold transition-all border-2";
+                if (type === mode) {
+                    btn.classList.add(`bg-${c}-500`, 'text-white', `border-${c}-400`, 'shadow-md');
+                } else {
+                    btn.classList.add(`text-${c}-600`, `border-${c}-400`, 'bg-white');
+                }
+            });
+
+            document.getElementById('ghost-controls').classList.toggle('hidden', mode !== 'ghost');
+            render();
+        }
+
+        function render() {
+            const container = document.getElementById('game-content');
+            container.innerHTML = "";
+
+            if (currentMode === 'reading') {
+                allLines.forEach((line, i) => {
+                    const p = document.createElement('p');
+                    p.innerText = line;
+                    container.appendChild(p);
+                    if ((i + 1) % 4 === 0) container.appendChild(document.createElement('br'));
+                });
+            } 
+            
+            else if (currentMode === 'ghost') {
+                allLines.forEach((line, i) => {
+                    const lineDiv = document.createElement('div');
+                    lineDiv.id = `ghost-line-${i}`;
+                    lineDiv.className = "ghost-line";
+                    
+                    const words = line.split(' ');
+                    words.forEach((word, wIdx) => {
+                        const span = document.createElement('span');
+                        span.className = "word-ghost";
+                        
+                        // Séparation lettre indice / reste du mot
+                        const firstChar = word[0] || '';
+                        const rest = word.slice(1);
+                        
+                        span.innerHTML = `
+                            <span class="hint-word">
+                                <span class="text-amber-600 font-bold">${firstChar}</span><span class="text-gray-200">${".".repeat(rest.length)}</span>
+                            </span>
+                            <span class="full-word text-amber-700 font-semibold">${word}</span>
+                        `;
+                        
+                        span.onclick = (e) => {
+                            e.stopPropagation();
+                            span.classList.toggle('revealed');
+                        };
+                        
+                        lineDiv.appendChild(span);
+                        lineDiv.appendChild(document.createTextNode(' '));
+                    });
+
+                    container.appendChild(lineDiv);
+                    if ((i + 1) % 4 === 0) container.appendChild(document.createElement('br'));
+                });
+            }
+
+            else if (currentMode === 'selection') {
+                allLines.forEach((correctText, i) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = "mb-3 flex items-start gap-2";
+                    
+                    const select = document.createElement('select');
+                    select.className = "line-select kids-font";
+                    
+                    // Création de 5 options (la bonne + 4 au hasard)
+                    const distractors = allLines.filter(l => l !== correctText);
+                    const shuffledDistractors = distractors.sort(() => 0.5 - Math.random()).slice(0, 4);
+                    const choices = [...shuffledDistractors, correctText].sort(() => 0.5 - Math.random());
+                    
+                    const defaultOpt = document.createElement('option');
+                    defaultOpt.text = "Vers n°" + (i+1) + " ...";
+                    defaultOpt.value = "";
+                    select.add(defaultOpt);
+
+                    choices.forEach(choice => {
+                        const opt = document.createElement('option');
+                        opt.text = choice;
+                        opt.value = choice;
+                        select.add(opt);
+                    });
+
+                    select.onchange = () => {
+                        if (select.value === correctText) {
+                            select.className = "line-select kids-font correct shadow-sm";
+                        } else if (select.value === "") {
+                            select.className = "line-select kids-font";
+                        } else {
+                            select.className = "line-select kids-font wrong";
+                        }
+                    };
+
+                    wrapper.appendChild(select);
+                    container.appendChild(wrapper);
+                    if ((i + 1) % 4 === 0) container.appendChild(document.createElement('br'));
+                });
+            }
+        }
+
+        // --- LOGIQUE FANTÔME ---
+        function revealNextGhostLine() {
+            if (ghostIndex < allLines.length - 1) {
+                // Retirer la surbrillance de l'ancienne ligne
+                if (ghostIndex >= 0) {
+                    const prev = document.getElementById(`ghost-line-${ghostIndex}`);
+                    if (prev) prev.classList.remove('active');
+                }
+                
+                ghostIndex++;
+                const currentLineEl = document.getElementById(`ghost-line-${ghostIndex}`);
+                if (currentLineEl) {
+                    currentLineEl.classList.add('active');
+                    // Révéler tous les mots de cette ligne
+                    const words = currentLineEl.querySelectorAll('.word-ghost');
+                    words.forEach(w => w.classList.add('revealed'));
+                    
+                    // Défilement fluide vers la ligne active
+                    currentLineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+
+        function resetGhost() {
+            ghostIndex = -1;
+            render();
+        }
+
+        // Lancement au chargement
+        window.onload = () => changeMode('reading');
+    </script>
+</body>
+</html>
